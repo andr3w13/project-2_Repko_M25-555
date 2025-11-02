@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "project-2-repko-m25-555"
+version = "0.1.0"
+description = ""
+authors = ["andr3w13 <petrarka895@gmail.com>"]
+
+packages = [
+    { include = "src" },
+]
+
+[tool.poetry.scripts]
+project = "src.primitive_db.main:main"
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
