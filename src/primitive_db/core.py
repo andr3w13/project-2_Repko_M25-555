@@ -1,15 +1,30 @@
 def create_table(metadata, table_name, columns):
-    if all(value in ('int', 'str', 'bool') for _, value in columns.items()):
-        if table_name not in metadata['tables']:
-            metadata[table_name]['columns'] = {'ID': 'int'}.update(columns)
-        else:
-            print('Такая таблица уже существует.')
-    else:
+    # допустимые типы
+    if not all(t in ('int', 'str', 'bool') for t in columns.values()):
         print('Недопустимые типы данных. Можно использовать только int, bool, str.')
+        return
+    
+    # проверка на существование таблицы
+    if metadata and any(table['table_name'] == table_name for table in metadata):
+        print('Такая таблица уже существует.')
+        return
+
+    # если нет ID, добавляем автоматически
+    if 'id' not in (name.lower() for name in columns.keys()):
+        columns = {'id': 'int', **columns}
+
+    # создаём запись
+    metadata.append({
+        'table_name': table_name,
+        'columns': columns
+    })
+    print(f'Таблица {table_name} успешно создана.')
 
 
 def drop_table(metadata, table_name):
-    if metadata[table_name]:
-        del metadata[table_name]
-    else:
-        print('Такой таблицы не существует.')    
+    for i, table in enumerate(metadata):
+        if table['table_name'] == table_name:
+            del metadata[i]
+            print(f'Таблица {table_name} удалена.')
+            return
+    print('Такой таблицы не существует.')
