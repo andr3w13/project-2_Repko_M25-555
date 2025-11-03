@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 from src.primitive_db import engine
 
 def main():
     print('DB project is running!')
-    engine.welcome()
+    engine.run()
 
 
 if __name__ == '__main__':
