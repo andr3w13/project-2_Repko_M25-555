@@ -23,5 +23,11 @@
 4. update <имя_таблицы> set <столбец1> = <новое_значение1> where <столбец_условия> = <значение_условия> - обновить запись.
 5. delete from <имя_таблицы> where <столбец> = <значение> - удалить запись.
 
+#### Примеры использования
+1. insert into users values ("Sergei", 28, true)
+2. update users set age = 29 where name = "Sergei"
+3. delete from users where ID = 1
+4. select from users where age = 28
+
 #### Демонстрация работы
 [![asciicast](https://asciinema.org/a/RvlgxVZvK3DPmsCOMLeI2yegl.svg)](https://asciinema.org/a/RvlgxVZvK3DPmsCOMLeI2yegl)
