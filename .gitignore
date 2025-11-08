@@ -211,3 +211,6 @@ poetry.lock
 
 # Metadata
 src/primitive_db/db_meta.json
+
+# Table data
+src/primitive_db/data
