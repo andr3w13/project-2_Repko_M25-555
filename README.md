@@ -1,4 +1,4 @@
-# project-2_Repko_M25-555
+# Примитивная БД
 
 ## Управление таблицами
 1. create_table <имя_таблицы> <столбец1:тип> <столбец2:тип> .. - создать таблицу.
@@ -24,4 +24,4 @@
 5. delete from <имя_таблицы> where <столбец> = <значение> - удалить запись.
 
 #### Демонстрация работы
-[![asciicast](https://asciinema.org/a/ZsQD4RqI4Mo7Din4IxaIUqnGv.svg)](https://asciinema.org/a/ZsQD4RqI4Mo7Din4IxaIUqnGv)
+[![asciicast](https://asciinema.org/a/RvlgxVZvK3DPmsCOMLeI2yegl.svg)](https://asciinema.org/a/RvlgxVZvK3DPmsCOMLeI2yegl)
