@@ -1,5 +1,19 @@
 # Примитивная БД
 
+## Инструкция по установке и запуску
+### Установка
+Установку можно выполнить двумя сопособами:
+1. через Poetry - poetry install
+2. через Makefile - make install
+
+### Запуск приложения
+Также есть два способа:
+1. через Poetry - poetry run database
+2. через Makefile - make run
+
+## Демонстрация работы БД
+[![asciicast](https://asciinema.org/a/ZYGIC1JMznsM5aNTuJljkxzcK.svg)](https://asciinema.org/a/ZYGIC1JMznsM5aNTuJljkxzcK)
+
 ## Управление таблицами
 1. create_table <имя_таблицы> <столбец1:тип> <столбец2:тип> .. - создать таблицу.
 2. list_tables - показать список всех таблиц.
@@ -31,3 +45,21 @@
 
 #### Демонстрация работы
 [![asciicast](https://asciinema.org/a/RvlgxVZvK3DPmsCOMLeI2yegl.svg)](https://asciinema.org/a/RvlgxVZvK3DPmsCOMLeI2yegl)
+
+## Обработка ошибок
+В проект добавлена централизованная система обработки ошибок на основе декоратора @handle_db_errors.
+Этот декоратор:
+1. перехватывает распространённые ошибки (FileNotFoundError, KeyError, ValueError, IndexError);
+2. выводит понятные человеку сообщения;
+3. предотвращает аварийное завершение программы;
+4. упрощает отладку и повышает стабильность всей базы данных.
+
+## Подтверждение опасных действий
+Для операций, приводящих к удалению данных, реализован декоратор @confirm_action.
+Он:
+1. спрашивает подтверждение перед выполнением операций drop_table и delete;
+2. предотвращает случайное удаление таблиц или записей;
+3. делает работу с базой данных более безопасной.
+
+#### Демонстрация работы
+[![asciicast](https://asciinema.org/a/fkhjGxmr3pWuBU2yi8EqvNPFg.svg)](https://asciinema.org/a/fkhjGxmr3pWuBU2yi8EqvNPFg)

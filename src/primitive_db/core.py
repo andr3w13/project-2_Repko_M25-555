@@ -1,9 +1,29 @@
-from src.primitive_db import utils
-from prettytable import PrettyTable
 import os
 
+from prettytable import PrettyTable
 
+from src.primitive_db import constants, decorators, utils
+
+
+@decorators.handle_db_errors
 def create_table(metadata, table_name, columns):
+    """
+    Создаёт новую таблицу в метаданных и создаёт соответствующий JSON-файл.
+
+    Аргументы:
+        metadata (list): список словарей с описанием всех таблиц.
+        table_name (str): имя создаваемой таблицы.
+        columns (dict): словарь вида {column_name: type}, 
+        где type in {'int', 'str', 'bool'}.
+
+    Поведение:
+        • проверяет корректность типов столбцов;
+        • не допускает создание таблицы с существующим именем;
+        • автоматически добавляет столбец id, если он не указан;
+        • создаёт пустой JSON-файл для таблицы;
+        • очищает кэш SELECT.
+    """
+
     # допустимые типы
     if not all(t in ('int', 'str', 'bool') for t in columns.values()):
         print('Недопустимые типы данных. Можно использовать только int, bool, str.')
@@ -31,8 +51,26 @@ def create_table(metadata, table_name, columns):
         new_table[column_name] = []
     utils.save_table_data(table_name, new_table)
 
+    constants.SELECT_CACHE_STORE.clear()
 
+
+@decorators.handle_db_errors
+@decorators.confirm_action('удаление таблицы')
 def drop_table(metadata, table_name):
+    """
+    Удаляет таблицу из метаданных и физически удаляет её JSON-файл.
+
+    Аргументы:
+        metadata (list): список таблиц.
+        table_name (str): имя удаляемой таблицы.
+
+    Поведение:
+        • проверяет, существует ли таблица;
+        • удаляет её запись из метаданных;
+        • удаляет файл таблицы, если он существует;
+        • очищает кэш SELECT.
+    """
+
     for i, table in enumerate(metadata):
         if table['table_name'] == table_name:
             del metadata[i]
@@ -42,9 +80,20 @@ def drop_table(metadata, table_name):
             print(f'Таблица {table_name} удалена.')
             return
     print('Такой таблицы не существует.')
+    constants.SELECT_CACHE_STORE.clear()
 
 
 def clean_values(values):
+    """
+    Подготавливает значения INSERT: убирает скобки/запятые и приводит типы.
+
+    Аргументы:
+        values (list[str]): сырые строковые значения из команды INSERT.
+
+    Возвращает:
+        tuple: очищенные и сконвертированные значения (int, float, bool или str).
+    """
+
     cleaned_raw = []
     for value in values:
         value = value.strip()
@@ -73,7 +122,24 @@ def clean_values(values):
     return values_cleaned
 
 
+@decorators.handle_db_errors
+@decorators.log_time
 def insert(metadata, table_name, values):
+    """
+    Добавляет строку в таблицу.
+
+    Аргументы:
+        metadata (list): список таблиц.
+        table_name (str): имя таблицы.
+        values (list[str]): значения, переданные пользователем.
+
+    Поведение:
+        • определяет ID автоматически или принимает от пользователя;
+        • проверяет соответствие типов значений столбцам;
+        • добавляет новые данные в JSON-файл таблицы;
+        • очищает кэш SELECT.
+    """
+
     values = clean_values(values)
 
     # проверка на существование таблицы
@@ -84,6 +150,7 @@ def insert(metadata, table_name, values):
             return
     else:
         print('Такой таблицы не существует.')
+        return
         
     # проверка на длину значений
     values_len = len(values)
@@ -136,9 +203,22 @@ def insert(metadata, table_name, values):
         table_to_insert[col_name].append(value)
     utils.save_table_data(table_name, table_to_insert)
     print('Данные успешно добавлены.')
+    
+    constants.SELECT_CACHE_STORE.clear()
 
 
 def select_ids_by_where_clause(clause, table_data):
+    """
+    Возвращает список ID записей, удовлетворяющих условию WHERE.
+
+    Аргументы:
+        clause (dict): условие вида {column: value}.
+        table_data (dict): данные таблицы без поля table_name.
+
+    Возвращает:
+        list[int]: ID подходящих записей.
+    """
+
     col_name, cond = list(clause.items())[0]
     ids_to_select = []
     col_to_select = table_data[col_name]
@@ -149,6 +229,14 @@ def select_ids_by_where_clause(clause, table_data):
 
 
 def print_prettytable(data):
+    """
+    Печатает данные таблицы в формате PrettyTable.
+
+    Аргументы:
+        data (dict): данные таблицы без поля table_name,
+                     все значения — списки одинаковой длины.
+    """
+
     row_count = len(next(iter(data.values()), []))
     rows = []
     for i in range(row_count):
@@ -164,37 +252,86 @@ def print_prettytable(data):
     print(table)
 
 
+@decorators.handle_db_errors
+@decorators.log_time
 def select(table_name, where_clause=None):
-    table_data = utils.load_table_data(table_name)
-    if not table_data:
+    """
+    Выбирает данные из таблицы с учётом кэширования и условия WHERE.
+
+    Аргументы:
+        table_name (str): имя таблицы.
+        where_clause (dict | None): условие выбора, например {"age": 18}.
+
+    Поведение:
+        • загружает данные таблицы;
+        • если where_clause нет — выводит все строки;
+        • если есть — выводит только отфильтрованные строки;
+        • использует кэширование результатов;
+        • выводит таблицу через PrettyTable.
+    """
+
+    cache_key = (table_name, tuple(where_clause.items()) if where_clause else None)
+
+    def compute():
+        table_data = utils.load_table_data(table_name)
+        if not table_data:
+            return 'NO_TABLE'
+
+        if len(table_data.get('id', [])) == 0:
+            return 'EMPTY'
+
+        full_data = {k: v for k, v in table_data.items() if k != 'table_name'}
+
+        if where_clause is None:
+            return full_data
+
+        ids = select_ids_by_where_clause(where_clause, full_data)
+        if not ids:
+            return 'NO_RESULTS'
+
+        selected = {k: [] for k in full_data}
+        for ID in ids:
+            ind = full_data['id'].index(ID)
+            for col in full_data:
+                selected[col].append(full_data[col][ind])
+        return selected
+
+    result = constants.SELECT_CACHE(cache_key, compute)
+
+    if result == 'NO_TABLE':
         print('Такой таблицы не существует.')
         return
-    
-    if len(table_data.get('id', [])) == 0:
+
+    if result == 'EMPTY':
         print(f'Таблица {table_name} пуста.')
         return
-    
-    full_data = {k: v for k, v in table_data.items() if k != "table_name"}
 
-    if where_clause is None:
-        print_prettytable(full_data)
+    if result == 'NO_RESULTS':
+        print('Записей с таким условием не найдено.')
         return
 
-    ids_to_select = select_ids_by_where_clause(where_clause, full_data)
-    if not ids_to_select:
-        print('Записей с таким условмием не найдено.')
-        return
-
-    selected = {k: [] for k in full_data.keys()}
-    for ID in ids_to_select:
-        ind = full_data['id'].index(ID)
-        for k in full_data.keys():
-            selected[k].append(full_data[k][ind])
-
-    print_prettytable(selected)
+    print_prettytable(result)
 
 
+@decorators.handle_db_errors
+@decorators.log_time
 def update(table_name, set_clause, where_clause):
+    """
+    Обновляет значения в строках таблицы, удовлетворяющих WHERE.
+
+    Аргументы:
+        table_name (str): имя таблицы.
+        set_clause (dict): новое значение, например {"name": "Ivan"}.
+        where_clause (dict): условие выбора строк.
+
+    Поведение:
+        • проверяет существование таблицы;
+        • запрещает изменять ID;
+        • обновляет все подходящие строки;
+        • сохраняет изменения в файл;
+        • очищает кэш SELECT.
+    """
+
     table_data = utils.load_table_data(table_name)
     if not table_data:
             print('Такой таблицы не существует.')
@@ -222,8 +359,26 @@ def update(table_name, set_clause, where_clause):
     deleted = 'обновлена' if len(ids_to_select) == 1 else 'обновлены'
     print(f'{field} с ID = {ids_to_select} успешно {deleted} из таблицы {table_name}.')
 
+    constants.SELECT_CACHE_STORE.clear()
 
+
+@decorators.handle_db_errors
+@decorators.confirm_action('удаление записи')
 def delete(table_name, where_clause):
+    """
+    Удаляет строки таблицы, удовлетворяющие условию WHERE.
+
+    Аргументы:
+        table_name (str): имя таблицы.
+        where_clause (dict): условие удаления.
+
+    Поведение:
+        • находит строки, соответствующие условию;
+        • удаляет строки по индексам;
+        • сохраняет обновлённые данные;
+        • очищает кэш SELECT.
+    """
+
     table_data = utils.load_table_data(table_name)
     if not table_data:
         print('Такой таблицы не существует.')
@@ -253,8 +408,24 @@ def delete(table_name, where_clause):
     deleted = 'удалена' if len(indices) == 1 else 'удалены'
     print(f'{field} с ID = {ids_to_select} успешно {deleted} из таблицы {table_name}.')
 
+    constants.SELECT_CACHE_STORE.clear()
 
+
+@decorators.handle_db_errors
 def info(table_name, metadata):
+    """
+    Выводит информацию о таблице: название, столбцы, количество записей.
+
+    Аргументы:
+        table_name (str): имя таблицы.
+        metadata (list): список таблиц.
+
+    Поведение:
+        • проверяет существование таблицы;
+        • выводит список столбцов с типами;
+        • считает число записей по длине списка id.
+    """
+
     table_exists = False
     for t in metadata:
         if t['table_name'] == table_name:
@@ -268,16 +439,8 @@ def info(table_name, metadata):
     columns = ', '.join(f'{key}:{value}' for key, value in table['columns'].items())
 
     table_data = utils.load_table_data(table_name)
-    record_count = len(table_data["id"]) if "id" in table_data else 0
+    record_count = len(table_data['id']) if 'id' in table_data else 0
 
     print(f'Таблица: {table_name}')
     print(f'Столбцы: {columns}')
     print(f'Количество записей: {record_count}')
-
-
-
-
-
-
-
-

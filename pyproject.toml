@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "project-2-repko-m25-555"
 version = "0.1.0"
-description = ""
+description = "Primitive DB"
 authors = ["andr3w13 <petrarka895@gmail.com>"]
 
 packages = [
